@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Blockchain E-Commerce Store</title>
+  <script src="https://cdn.jsdelivr.net/npm/web3@1.10.0/dist/web3.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f8f9fa;
+      margin: 0;
+      padding: 0;
+    }
+    header {
+      background-color: #343a40;
+      color: white;
+      padding: 15px;
+      text-align: center;
+    }
+    .auth-box {
+      max-width: 400px;
+      margin: 30px auto;
+      padding: 20px;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 0 5px #ccc;
+    }
+    .products {
+      display: none;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin: 20px;
+    }
+    .product {
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      padding: 15px;
+      margin: 10px;
+      width: 230px;
+      box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+    }
+    .product img {
+      width: 100%;
+      height: 150px;
+      object-fit: cover;
+      border-radius: 5px;
+    }
+    button {
+      padding: 10px 15px;
+      margin: 5px 0;
+      background-color: #28a745;
+      color: white;
+      border: none;
+      cursor: pointer;
+      border-radius: 5px;
+    }
+    button:hover {
+      background-color: #218838;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>E-commerce Store</h1>
+    <span id="wallet-address"></span><br/>
+    <div id="user-options" style="display: none;">
+      <button onclick="goToCartPage()">🛒 View Cart</button>
+      <button onclick="logout()">Logout</button>
+    </div>
+  </header>
+
+  <!-- MetaMask Auth -->
+  <div class="auth-box" id="auth-container">
+    <h2>Login with MetaMask</h2>
+    <button onclick="loginWithWallet()">🔐 Login via Wallet</button>
+  </div>
+
+  <!-- Products Section -->
+  <div class="products" id="product-list"></div>
+
+  <script>
+    const products = [
+      {
+        id: 1,
+        name: "Television",
+        price: 0.5,
+        img: "https://www.sony.co.in/image/ccbe548efa94995a9c034d96a4a6acbb?fmt=pjpeg&wid=330&bgcolor=FFFFFF&bgc=FFFFFF",
+        description: "55-inch 4K Ultra HD Smart TV with voice control and HDR. Perfect for movie nights and streaming."
+      },
+      {
+        id: 2,
+        name: "iPhone",
+        price: 0.7,
+        img: "https://mobitez.in/wp-content/uploads/2024/10/Apple-Iphone-16-pro-Max-A.jpg",
+        description: "Latest iPhone with A18 Bionic chip and improved camera system. Sleek design and fast performance."
+      },
+      {
+        id: 3,
+        name: "Air Conditioner",
+        price: 1.0,
+        img: "https://www.pngplay.com/wp-content/uploads/6/White-Scoole-Air-Conditioner-AC-PNG.png",
+        description: "1.5 Ton Inverter AC with smart cooling and energy efficiency. Ideal for medium to large rooms."
+      },
+      {
+        id: 4,
+        name: "Classic Piano",
+        price: 0.3,
+        img: "https://in.yamaha.com/en/files/CVP-909GP_a_0001_a0388f6bdfd18943c6b62f8e1ad13801.jpg?impolicy=resize&imwid=396&imhei=396",
+        description: "Elegant digital piano with weighted keys and authentic tones. Suited for learners and performers."
+      },
+      {
+        id: 5,
+        name: "Laptop",
+        price: 0.8,
+        img: "https://inventstore.in/wp-content/uploads/2024/11/5-scaled.webp",
+        description: "High-performance laptop with 16GB RAM and SSD. Great for gaming, coding, and productivity."
+      }
+    ];
+
+    let userAccount = null;
+
+    function goToCartPage() {
+      window.location.href = 'cart.html';
+    }
+
+    function addToCart(productId) {
+      const product = products.find(p => p.id === productId);
+      const cart = JSON.parse(localStorage.getItem('cart')) || [];
+      const { name, price, img, description } = product;
+      cart.push({ name, price, img, description });
+      localStorage.setItem('cart', JSON.stringify(cart));
+      alert(`${product.name} added to cart.`);
+    }
+
+    function renderProducts() {
+      const container = document.getElementById("product-list");
+      container.innerHTML = "";
+      products.forEach(product => {
+        const div = document.createElement("div");
+        div.className = "product";
+        div.innerHTML = `
+          <img src="${product.img}" alt="${product.name}" />
+          <h3>${product.name}</h3>
+          <p><strong>Price:</strong> ${product.price} ETH</p>
+          <p><em>${product.description}</em></p>
+          <button onclick="addToCart(${product.id})">Add to Cart</button>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    async function loginWithWallet() {
+      if (!window.ethereum) {
+        alert("Please install MetaMask");
+        return;
+      }
+      try {
+        const accounts = await ethereum.request({ method: 'eth_requestAccounts' });
+        const address = accounts[0];
+        const message = "Login request for Blockchain E-Commerce";
+        const signature = await ethereum.request({
+          method: "personal_sign",
+          params: [message, address],
+        });
+        localStorage.setItem("userAddress", address);
+        document.getElementById("auth-container").style.display = "none";
+        document.querySelector(".products").style.display = "flex";
+        document.getElementById("wallet-address").textContent = `Logged in: ${address}`;
+        document.getElementById("user-options").style.display = "block";
+        renderProducts();
+      } catch (err) {
+        alert("Login failed: " + err.message);
+        console.error(err);
+      }
+    }
+
+    function logout() {
+      localStorage.removeItem("userAddress");
+      location.reload();
+    }
+
+    window.onload = function () {
+      const savedAddress = localStorage.getItem("userAddress");
+      if (savedAddress) {
+        document.getElementById("auth-container").style.display = "none";
+        document.querySelector(".products").style.display = "flex";
+        document.getElementById("wallet-address").textContent = `Logged in: ${savedAddress}`;
+        document.getElementById("user-options").style.display = "block";
+        renderProducts();
+      }
+    };
+  </script>
+</body>
+</html>

@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Your Cart</title>
+  <script src="https://cdn.jsdelivr.net/npm/web3@1.10.0/dist/web3.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+  <style>
+    body { font-family: Arial; background: #f4f4f4; padding: 20px; text-align: center; }
+    .tabs button { padding: 10px 20px; margin: 5px; border: none; background: #007bff; color: #fff; border-radius: 5px; cursor: pointer; }
+    .tabs button:hover { background-color: #0056b3; }
+    .tab-content { display: none; background: white; padding: 20px; margin: auto; max-width: 600px; box-shadow: 0 0 5px #ccc; border-radius: 8px; }
+    .tab-content.active { display: block; }
+    ul { list-style-type: none; padding: 0; }
+    li { padding: 10px 0; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; }
+    button { padding: 8px 14px; border: none; border-radius: 5px; cursor: pointer; }
+    .remove-btn { background-color: #dc3545; color: white; }
+    .remove-btn:hover { background-color: #c82333; }
+    input, pre { width: 100%; padding: 10px; margin: 10px 0; border-radius: 5px; border: 1px solid #ccc; }
+    pre { background: #f0f0f0; min-height: 100px; white-space: pre-wrap; }
+    #order-summary { background-color: #d4edda; border: 1px solid #c3e6cb; padding: 20px; border-radius: 10px; margin-top: 20px; }
+  </style>
+</head>
+<body>
+
+  <div class="tabs">
+    <button onclick="switchTab('cart')">🛒 Cart</button>
+    <button onclick="switchTab('logs')">📄 View Logs</button>
+  </div>
+
+  <div id="cart-tab" class="tab-content active">
+    <h1>🧾 Your Cart</h1>
+    <ul id="cart-items"></ul>
+    <p>Total: <span id="cart-total">0</span> ETH</p>
+    <button onclick="checkout()">Checkout</button>
+  </div>
+
+  <div id="logs-tab" class="tab-content">
+    <h2>🔐 View Encrypted Log</h2>
+    <input type="text" id="ipfsHash" placeholder="Enter IPFS Hash (CID)">
+    <input type="text" id="aesKey" placeholder="Enter AES Key">
+    <button onclick="fetchAndDecrypt()">Fetch & Decrypt</button>
+    <pre id="output">🔎 Decrypted log will appear here...</pre>
+  </div>
+
+  <div id="order-summary" style="display: none;">
+    <h2>✅ Order Summary</h2>
+    <ul id="summary-items"></ul>
+    <p><strong>Total Paid:</strong> <span id="summary-total"></span> ETH</p>
+    <p><strong>IPFS Hash:</strong> <span id="summary-ipfs"></span>  Your purchase log has been securely stored and is retrievable with your AES key.<p>
+    <p><strong>Transaction Status:</strong> <span style="color:green;">Success</span></p>
+  </div>
+
+  <script>
+    const contractAddress = '0xafAD482155809d6B8e99C3E6e1fF39EC8d3138c9';
+    const sellerAddress = "0x3A718055a48c0a0DCD3Cc05B280ad01797fbb2d0";
+    const contractABI = [
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "buyer",
+				"type": "address"
+			},
+			{
+				"indexed": false,
+				"internalType": "string",
+				"name": "itemName",
+				"type": "string"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "price",
+				"type": "uint256"
+			},
+			{
+				"indexed": false,
+				"internalType": "string",
+				"name": "ipfsHash",
+				"type": "string"
+			}
+		],
+		"name": "OrderPlaced",
+		"type": "event"
+	},
+	{
+		"inputs": [],
+		"name": "getMyOrders",
+		"outputs": [
+			{
+				"components": [
+					{
+						"internalType": "address",
+						"name": "buyer",
+						"type": "address"
+					},
+					{
+						"internalType": "string",
+						"name": "itemName",
+						"type": "string"
+					},
+					{
+						"internalType": "uint256",
+						"name": "price",
+						"type": "uint256"
+					},
+					{
+						"internalType": "string",
+						"name": "ipfsHash",
+						"type": "string"
+					}
+				],
+				"internalType": "struct OrderStore.Order[]",
+				"name": "",
+				"type": "tuple[]"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "orders",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "buyer",
+				"type": "address"
+			},
+			{
+				"internalType": "string",
+				"name": "itemName",
+				"type": "string"
+			},
+			{
+				"internalType": "uint256",
+				"name": "price",
+				"type": "uint256"
+			},
+			{
+				"internalType": "string",
+				"name": "ipfsHash",
+				"type": "string"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "string",
+				"name": "item",
+				"type": "string"
+			},
+			{
+				"internalType": "uint256",
+				"name": "price",
+				"type": "uint256"
+			},
+			{
+				"internalType": "string",
+				"name": "ipfsHash",
+				"type": "string"
+			}
+		],
+		"name": "placeOrder",
+		"outputs": [],
+		"stateMutability": "payable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "string[]",
+				"name": "itemNames",
+				"type": "string[]"
+			},
+			{
+				"internalType": "uint256[]",
+				"name": "prices",
+				"type": "uint256[]"
+			},
+			{
+				"internalType": "string[]",
+				"name": "ipfsHashes",
+				"type": "string[]"
+			}
+		],
+		"name": "placeOrderBatch",
+		"outputs": [],
+		"stateMutability": "payable",
+		"type": "function"
+	}
+];
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+      document.getElementById(`${tabId}-tab`).classList.add('active');
+    }
+
+    function renderCart() {
+      const cartList = document.getElementById("cart-items");
+      const totalElem = document.getElementById("cart-total");
+      const cart = JSON.parse(localStorage.getItem("cart")) || [];
+      cartList.innerHTML = "";
+      let total = 0;
+      cart.forEach((item, index) => {
+        const li = document.createElement("li");
+        li.innerHTML = `${item.name} - ${item.price} ETH <button class="remove-btn" onclick="removeItem(${index})">Remove</button>`;
+        cartList.appendChild(li);
+        total += Number(item.price);
+      });
+      totalElem.textContent = total.toFixed(2);
+    }
+
+    function removeItem(index) {
+      const cart = JSON.parse(localStorage.getItem("cart")) || [];
+      cart.splice(index, 1);
+      localStorage.setItem("cart", JSON.stringify(cart));
+      renderCart();
+    }
+
+    async function checkout() {
+      if (!window.ethereum) return alert("Please install MetaMask");
+
+      const web3 = new Web3(window.ethereum);
+      const accounts = await ethereum.request({ method: "eth_requestAccounts" });
+      const userAccount = accounts[0];
+      const contract = new web3.eth.Contract(contractABI, contractAddress);
+      const cart = JSON.parse(localStorage.getItem("cart")) || [];
+      if (!cart.length) return alert("Cart is empty.");
+
+      const aesKey = prompt("Enter AES encryption key:");
+      if (!aesKey) return;
+
+      let ipfsList = [];
+      let total = 0;
+      const summaryItems = document.getElementById("summary-items");
+      summaryItems.innerHTML = "";
+
+      for (let item of cart) {
+        try {
+          const log = `Order placed by ${userAccount}:\nItem: ${item.name}\nPrice: ${item.price} ETH\nTime: ${new Date().toLocaleString()}`;
+          const encrypted = CryptoJS.AES.encrypt(log, aesKey).toString();
+
+          const formData = new FormData();
+          formData.append("file", new Blob([encrypted], { type: "text/plain" }), `log_${item.name}.txt`);
+
+          const response = await fetch("https://api.pinata.cloud/pinning/pinFileToIPFS", {
+            method: "POST",
+            headers: {
+              Authorization: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiJlMDAyYWRkYy1mZDA1LTQyMDItYTgzZC1lNDkwODg4YjEwYWQiLCJlbWFpbCI6ImplZXZpa2FzYXJhbkBnbWFpbC5jb20iLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwicGluX3BvbGljeSI6eyJyZWdpb25zIjpbeyJkZXNpcmVkUmVwbGljYXRpb25Db3VudCI6MSwiaWQiOiJGUkExIn0seyJkZXNpcmVkUmVwbGljYXRpb25Db3VudCI6MSwiaWQiOiJOWUMxIn1dLCJ2ZXJzaW9uIjoxfSwibWZhX2VuYWJsZWQiOmZhbHNlLCJzdGF0dXMiOiJBQ1RJVkUifSwiYXV0aGVudGljYXRpb25UeXBlIjoic2NvcGVkS2V5Iiwic2NvcGVkS2V5S2V5IjoiZWViZDM2ZGQxYjcwZTFkOGExZmEiLCJzY29wZWRLZXlTZWNyZXQiOiIwNDZjMDQyZjA3OWU2ZjAzODNkZjFlZDNiYWJiNTBmYTQ5MDgzMjNiMmI4NWU2N2MzZDU4ZGViOTY3Yzg4N2UxIiwiZXhwIjoxNzgyMTM1MTE5fQ.sZq1f3Q777X959TrHs-0SCDQH45lLNeSAlr1fMtVa-Q"  // Replace with your JWT
+            },
+            body: formData
+          });
+
+          const data = await response.json();
+          const ipfsHash = data.IpfsHash;
+          ipfsList.push(ipfsHash);
+
+          const priceInWei = web3.utils.toWei(item.price.toString(), "ether");
+          await ethereum.request({
+            method: "eth_sendTransaction",
+            params: [{
+              from: userAccount,
+              to: sellerAddress,
+              value: web3.utils.toHex(priceInWei)
+            }]
+          });
+
+          await contract.methods.placeOrder(item.name, priceInWei, ipfsHash).send({ from: userAccount });
+
+          const li = document.createElement("li");
+          li.textContent = `${item.name} - ${item.price} ETH`;
+          summaryItems.appendChild(li);
+          total += Number(item.price);
+        } catch (err) {
+          console.error("Error processing item:", err);
+        }
+		total += parseFloat(item.price) || 0;
+      }
+
+      localStorage.removeItem("cart");
+      renderCart();
+
+      document.getElementById("summary-total").textContent = total.toFixed(2);
+      document.getElementById("summary-ipfs").textContent = ipfsList.join(", ");
+      document.getElementById("order-summary").style.display = "block";
+    }
+
+    async function fetchAndDecrypt() {
+      const ipfsHash = document.getElementById("ipfsHash").value.trim();
+      const aesKey = document.getElementById("aesKey").value.trim();
+      const output = document.getElementById("output");
+
+      if (!ipfsHash || !aesKey) return output.textContent = "❌ Provide both IPFS hash and AES key.";
+
+      try {
+        const response = await fetch(`https://gateway.pinata.cloud/ipfs/${ipfsHash}`);
+        if (!response.ok) return output.textContent = `❌ Failed to fetch file. Status: ${response.status}`;
+        const encryptedText = await response.text();
+        const bytes = CryptoJS.AES.decrypt(encryptedText, aesKey);
+        const decryptedText = bytes.toString(CryptoJS.enc.Utf8);
+        output.textContent = decryptedText || "❌ Decryption failed.";
+      } catch (err) {
+        console.error(err);
+        output.textContent = "❌ Error fetching or decrypting.";
+      }
+    }
+
+    renderCart();
+  </script>
+</body>
+</html>
